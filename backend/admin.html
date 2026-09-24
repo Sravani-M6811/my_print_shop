@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Print Shop Admin Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+    h2 { color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; background: #fff; }
+    th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+    th { background: #007bff; color: white; }
+    select { padding: 5px; border-radius: 4px; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+    .auth-bar { margin-bottom: 16px; display: flex; gap: 8px; align-items: center; }
+    .auth-bar input { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; width: 280px; font-family: monospace; }
+    .auth-bar button { padding: 6px 14px; border: none; border-radius: 4px; background: #007bff; color: #fff; cursor: pointer; }
+    .auth-bar button:hover { background: #0056b3; }
+    .status { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+
+  <h2>&#128202; Print Shop Admin Dashboard</h2>
+
+  <div class="auth-bar">
+    <label for="adminKey"><b>Admin API Key:</b></label>
+    <input type="password" id="adminKey" placeholder="Enter admin API key" />
+    <button onclick="connect()">Connect</button>
+    <span id="connStatus" class="status"></span>
+  </div>
+
+  <button onclick="fetchOrders()">&#128260; Refresh Orders</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Customer</th>
+        <th>Phone</th>
+        <th>Product</th>
+        <th>Qty</th>
+        <th>Total Price</th>
+        <th>Design File</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="ordersTable">
+      <!-- Orders populate here -->
+    </tbody>
+  </table>
+
+  <script>
+    let adminKey = '';
+
+    function connect() {
+      adminKey = document.getElementById('adminKey').value.trim();
+      const status = document.getElementById('connStatus');
+      if (!adminKey) {
+        status.textContent = 'Please enter an API key.';
+        status.style.color = 'red';
+        return;
+      }
+      status.textContent = 'Key saved. Click Refresh Orders.';
+      status.style.color = '#007bff';
+      fetchOrders();
+    }
+
+    async function fetchOrders() {
+      const status = document.getElementById('connStatus');
+      if (!adminKey) {
+        status.textContent = 'Enter your admin API key first.';
+        status.style.color = 'red';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/orders', {
+          headers: { 'x-admin-key': adminKey }
+        });
+
+        if (res.status === 401) {
+          status.textContent = 'Unauthorized — check your API key.';
+          status.style.color = 'red';
+          return;
+        }
+        if (res.status === 503) {
+          status.textContent = 'Server admin key not configured.';
+          status.style.color = 'red';
+          return;
+        }
+
+        const data = await res.json();
+        const tableBody = document.getElementById('ordersTable');
+        tableBody.innerHTML = '';
+
+        (data.orders || []).forEach(order => {
+          tableBody.innerHTML += `
+            <tr>
+              <td><b>${escapeHtml(order.orderId)}</b></td>
+              <td>${escapeHtml(order.customerName)}</td>
+              <td>${escapeHtml(order.phone)}</td>
+              <td>${escapeHtml(order.productName)}</td>
+              <td>${escapeHtml(String(order.quantity))}</td>
+              <td>&#8377;${escapeHtml(String(order.totalPrice))}</td>
+              <td>
+                ${order.fileUrl ? `<a href="${escapeAttr(order.fileUrl)}" target="_blank" rel="noopener">View File</a>` : 'No File'}
+              </td>
+              <td>
+                <select onchange="updateStatus('${escapeAttr(order.orderId)}', this.value)">
+                  <option value="Received" ${order.status === 'Received' ? 'selected' : ''}>Received</option>
+                  <option value="Printing" ${order.status === 'Printing' ? 'selected' : ''}>Printing</option>
+                  <option value="Ready" ${order.status === 'Ready' ? 'selected' : ''}>Ready for Pickup</option>
+                </select>
+              </td>
+            </tr>
+          `;
+        });
+
+        status.textContent = `Loaded ${data.orders.length} orders.`;
+        status.style.color = 'green';
+      } catch (err) {
+        status.textContent = 'Error fetching orders — is the server running?';
+        status.style.color = 'red';
+      }
+    }
+
+    async function updateStatus(orderId, newStatus) {
+      const status = document.getElementById('connStatus');
+      if (!adminKey) return;
+
+      try {
+        const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': adminKey
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+
+        if (res.status === 401) {
+          status.textContent = 'Unauthorized — check your API key.';
+          status.style.color = 'red';
+          return;
+        }
+
+        status.textContent = 'Status updated!';
+        status.style.color = 'green';
+        fetchOrders();
+      } catch (err) {
+        status.textContent = 'Error updating status.';
+        status.style.color = 'red';
+      }
+    }
+
+    // Prevent XSS from order data rendered into the table.
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+    function escapeAttr(str) {
+      return (str ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+  </script>
+
+</body>
+</html>

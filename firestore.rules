@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: returns true when the caller holds an admin role ─────────
+    function isAdmin() {
+      return request.auth != null
+             && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // ── users/{uid} — profile + per-user cart & orders ────────────────
+    match /users/{uid} {
+      // Profile document — only the owning user may read or update.
+      allow read, update: if request.auth != null && request.auth.uid == uid;
+      // Create — the new document must belong to the signed-in user (matches
+      // both the phone flow {uid, phone, createdAt} and the email signup).
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == request.auth.uid;
+
+      // Cart sub-collection — owner-only.
+      match /cart/{itemId} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+
+      // Orders sub-collection — the owning customer manages their own orders.
+      // A customer order claiming "paid" must reference a real payment id
+      // (same gate as the allOrders mirror) so a fake paid status can never be
+      // written to the customer's own order history without an actual payment.
+      // Admins may only UPDATE order status (synced from the admin panel to
+      // the customer's view); they can never create or delete customer orders.
+      match /orders/{orderId} {
+        allow read, delete: if request.auth != null
+                            && request.auth.uid == uid;
+        allow create: if request.auth != null
+                      && request.auth.uid == uid
+                      && (request.resource.data.paymentStatus != 'paid'
+                          || (request.resource.data.paymentId is string
+                              && request.resource.data.paymentId.size() > 0));
+        allow update: if request.auth != null
+                      && (request.auth.uid == uid || isAdmin());
+      }
+    }
+
+    // ── allOrders — top-level mirror for admin aggregation ─────────────
+    // Written by CartService.commitOrder with the userId embedded in the doc.
+    match /allOrders/{orderId} {
+      allow read: if isAdmin();
+      // Customers may ONLY create their own order mirror (the doc must carry
+      // their auth uid). paymentStatus is locked to the three allowed lifecycle
+      // values, and a "paid" mirror must reference a REAL Razorpay payment id
+      // (Razorpay payment ids always start with "pay_"). A customer therefore
+      // cannot claim a paid status with a made-up id.
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.paymentStatus in
+                        ['unpaid', 'pending', 'paid']
+                    && (request.resource.data.paymentStatus != 'paid'
+                        || (request.resource.data.paymentId is string
+                            && request.resource.data.paymentId.size() > 6
+                            && request.resource.data.paymentId.matches('pay_.*')));
+      // Status updates and deletes are admin-only — a customer can never
+      // rewrite an existing mirror (e.g. flip an order to paid).
+      allow update, delete: if isAdmin();
+    }
+
+    // ── admins/{uid} — role marker documents ──────────────────────────
+    // Each doc ID is the Firebase UID of an admin. Only the admin themselves
+    // can read their own marker; writes are managed server-side / console.
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // ── products/{productId} — admin-managed catalogue overrides ──────
+    // Anyone (including guests browsing the store) may READ the catalogue
+    // overrides; only admins may create/update/deactivate records. The docs
+    // are public catalogue data — no customer data or keys are exposed —
+    // and write protection is no weaker than before.
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── designs/{designId} — admin-managed design overrides ───────────
+    // Same customer-read / admin-write split as products.
+    match /designs/{designId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

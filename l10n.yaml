@@ -1,0 +1,17 @@
+# gen-l10n configuration (Flutter internationalization).
+#
+# This is the translation pipeline for MY PRINT SHOP. Templates live under
+# lib/l10n and generated Dart classes are written to the synthetic directory
+# (.dart_tool/flutter_gen) so the source tree stays clean.
+#
+# To enable a new language (English is the only shipped template today):
+#   1. Copy lib/l10n/app_en.arb -> lib/l10n/app_<code>.arb and translate.
+#   2. Add the locale to supportedLocales in MaterialApp (main.dart) and
+#      mark it `enabled: true` in settings_screen.dart.
+#   3. flutter gen-l10n  (or just build — it runs automatically).
+arb-dir: lib/frontend/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false
+output-dir: lib/frontend/l10n/generated

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Print Shop Mobile App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-2 sm:p-4">
+
+  <!-- Mobile App Frame Container -->
+  <div class="w-full max-w-sm bg-white rounded-[32px] shadow-2xl border-4 border-slate-800 overflow-hidden relative min-h-[640px] flex flex-col justify-between">
+    
+    <!-- App Status & Header Bar -->
+    <div>
+      <div class="bg-indigo-600 p-5 text-white text-center rounded-b-2xl shadow-md">
+        <div class="w-12 h-1 bg-indigo-300 mx-auto rounded-full mb-3 opacity-60"></div>
+        <h1 class="text-xl font-bold tracking-wide">📲 My Print Shop App</h1>
+        <p class="text-xs text-indigo-200 mt-0.5">Quick Printing Service</p>
+      </div>
+
+      <div class="p-4 space-y-3">
+        <!-- Customer Input -->
+        <div>
+          <label class="text-xs font-bold text-slate-600 block mb-1">Your Name</label>
+          <input type="text" id="customerName" placeholder="Enter name" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div>
+          <label class="text-xs font-bold text-slate-600 block mb-1">Phone Number</label>
+          <input type="text" id="phone" placeholder="Enter phone" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <!-- Product Cards Selection -->
+        <div>
+          <label class="text-xs font-bold text-slate-600 block mb-1">Choose Service</label>
+          <select id="productId" onchange="calculatePrice()" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold text-slate-700">
+            <option value="1" data-price="2" data-type="unit">Visiting Cards (₹2/unit)</option>
+            <option value="2" data-price="15" data-type="banner">Flex Banner (₹15/sqft)</option>
+            <option value="3" data-price="150" data-type="unit">Printed Mug (₹150/unit)</option>
+          </select>
+        </div>
+
+        <!-- Quantity & Upload -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-xs font-bold text-slate-600 block mb-1">Quantity</label>
+            <input type="number" id="quantity" value="10" min="1" oninput="calculatePrice()" class="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl outline-none">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-600 block mb-1">Design File</label>
+            <input type="file" id="designFile" class="w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-2 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-600 font-semibold cursor-pointer">
+          </div>
+        </div>
+
+        <!-- Price Display -->
+        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-center">
+          <span class="text-[10px] font-bold text-indigo-500 tracking-wider uppercase">Estimated Total</span>
+          <div id="displayPrice" class="text-2xl font-black text-indigo-700">₹20</div>
+        </div>
+
+        <!-- UPI Code Container -->
+        <div id="qrBox" class="text-center">
+          <img id="upiQrImage" src="" alt="Scan QR" class="w-28 h-28 mx-auto rounded-lg border-2 border-indigo-500 p-1 bg-white">
+        </div>
+      </div>
+    </div>
+
+    <!-- App Bottom Bar Button -->
+    <div class="p-4 bg-slate-50 border-t border-slate-100">
+      <button onclick="submitCompleteOrder()" class="w-full bg-indigo-600 active:bg-indigo-700 text-white font-bold py-3 rounded-2xl shadow-lg transition text-sm">
+        🚀 Place Order Now
+      </button>
+      <div id="statusMsg" class="text-center text-xs font-bold text-emerald-600 mt-2"></div>
+    </div>
+  </div>
+
+  <script>
+    const SHOP_UPI_ID = "myprintshop@okaxis"; 
+    const SHOP_NAME = "MyPrintShop";
+
+    function calculatePrice() {
+      const select = document.getElementById('productId');
+      const selectedOption = select.options[select.selectedIndex];
+      const price = Number(selectedOption.getAttribute('data-price'));
+      const type = selectedOption.getAttribute('data-type');
+      const quantity = Number(document.getElementById('quantity').value) || 1;
+
+      let totalPrice = (type === "banner") ? (6 * 3) * price * quantity : price * quantity;
+      document.getElementById('displayPrice').innerText = "₹" + totalPrice;
+
+      if (totalPrice > 0) {
+        const upiUrl = `upi://pay?pa=${SHOP_UPI_ID}&pn=${encodeURIComponent(SHOP_NAME)}&am=${totalPrice}&cu=INR&tn=PrintShopOrder`;
+        document.getElementById('upiQrImage').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(upiUrl)}`;
+      }
+    }
+
+    calculatePrice();
+
+    async function submitCompleteOrder() {
+      const name = document.getElementById('customerName').value;
+      const phone = document.getElementById('phone').value;
+      const productId = document.getElementById('productId').value;
+      const quantity = document.getElementById('quantity').value;
+      const fileInput = document.getElementById('designFile');
+      const statusMsg = document.getElementById('statusMsg');
+
+      if (!name || !phone) { alert('Enter Name and Phone number!'); return; }
+
+      let uploadedFileUrl = "";
+      if (fileInput.files.length > 0) {
+        statusMsg.innerText = "⏳ Uploading Design File...";
+        const formData = new FormData();
+        formData.append('designFile', fileInput.files[0]);
+        try {
+          const uploadRes = await fetch('http://localhost:5000/api/upload', { method: 'POST', body: formData });
+          const uploadData = await uploadRes.json();
+          if (uploadData.success) uploadedFileUrl = uploadData.fileUrl;
+        } catch (e) {}
+      }
+
+      statusMsg.innerText = "⏳ Sending Order...";
+      try {
+        const orderRes = await fetch('http://localhost:5000/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerName: name, phone, productId: Number(productId), quantity: Number(quantity), width: 6, height: 3, fileUrl: uploadedFileUrl })
+        });
+        const result = await orderRes.json();
+        if (result.success) {
+          statusMsg.innerText = "🎉 Order Placed!";
+          alert("🎉 Order Placed!\nOrder ID: " + result.order.orderId);
+        }
+      } catch (err) { statusMsg.innerText = "❌ Backend Error!"; }
+    }
+  </script>
+</body>
+</html>

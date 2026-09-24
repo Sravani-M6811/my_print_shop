@@ -1,0 +1,18 @@
+{
+  "@@locale": "en",
+  "appTitle": "MY PRINT SHOP",
+  "settingsTitle": "Settings",
+  "appearance": "Appearance",
+  "language": "Language",
+  "darkMode": "Dark Mode",
+  "darkModeSubtitle": "Use the dark color theme across the app",
+  "languageSubtitle": "English (default)",
+  "account": "Account",
+  "accountDetails": "Account Details",
+  "accountDetailsSubtitle": "Phone, email and account information",
+  "appLanguageTitle": "App Language",
+  "appLanguageNote": "The app is English-only right now. Other languages will be enabled as translations ship.",
+  "comingSoon": "Coming soon",
+  "active": "Active",
+  "selected": "Selected"
+}
