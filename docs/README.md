@@ -20,7 +20,9 @@ Users can browse a product catalogue (sarees, dress materials, t-shirt prints, m
 - **AI assistant** *(optional backend)* — chat with the shop assistant via a local Ollama endpoint.
 - **Persistent state** — `provider` + `AppState`; data saved to `shared_preferences` and mirrored to Firestore.
 
----
+--- 
+
+
 
 ## Tech Stack
 
